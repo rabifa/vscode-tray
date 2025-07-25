@@ -16,6 +16,18 @@ class VSCodeTrayLauncher {
     this.findVSCodeCommand();
   }
 
+  // NOVA FUNÇÃO - Adicione aqui
+  setAutoStart(enable) {
+    if (app.isPackaged) {
+      app.setLoginItemSettings({
+        openAtLogin: enable,
+        path: process.execPath,
+        args: ["--hidden"], // Inicia minimizado
+      });
+      console.log(`Auto-start ${enable ? "habilitado" : "desabilitado"}`);
+    }
+  }
+
   getProjectsFilePath() {
     if (app.isPackaged) {
       const userDataPath = app.getPath("userData");
@@ -167,7 +179,6 @@ class VSCodeTrayLauncher {
       const project = this.projects[index];
       if (!project) return;
 
-      // Remove sem confirmação
       this.projects.splice(index, 1);
       this.saveProjects();
       this.updateTrayMenu();
@@ -195,7 +206,6 @@ class VSCodeTrayLauncher {
 
       console.log(`Usando comando: ${this.vscodeCommand}`);
 
-      // Sempre abre em nova janela
       const args = ["--new-window", projectPath];
 
       const child = spawn(this.vscodeCommand, args, {
@@ -223,6 +233,7 @@ class VSCodeTrayLauncher {
     }
   }
 
+  // 🔄 FUNÇÃO MODIFICADA - Substitua a função existente
   createTrayMenu() {
     const menuItems = [];
 
@@ -232,16 +243,28 @@ class VSCodeTrayLauncher {
       enabled: false,
     });
 
+    // 🆕 NOVO TRECHO - Opção de auto-start (só aparece quando empacotado)
+    if (app.isPackaged) {
+      const autoStart = app.getLoginItemSettings().openAtLogin;
+      menuItems.push({
+        label: autoStart
+          ? "Desabilitar inicialização automática"
+          : "Habilitar inicialização automática",
+        click: () => {
+          this.setAutoStart(!autoStart);
+          this.updateTrayMenu(); // Atualiza o menu para mostrar o novo status
+        },
+      });
+    }
+
     // Lista dos projetos
     if (this.projects.length > 0) {
       menuItems.push({ type: "separator" });
 
-      // Ordena projetos alfabeticamente
       const sortedProjects = [...this.projects].sort((a, b) =>
         a.name.toLowerCase().localeCompare(b.name.toLowerCase())
       );
 
-      // Adiciona cada projeto com submenu
       sortedProjects.forEach((project) => {
         const originalIndex = this.projects.findIndex(
           (p) => p.path === project.path
@@ -358,7 +381,7 @@ class VSCodeTrayLauncher {
     const icon = this.getTrayIcon();
 
     this.tray = new Tray(icon);
-    this.tray.setToolTip("VS Code Tray");
+    this.tray.setToolTip("VS Code Project Launcher");
     this.tray.setContextMenu(this.createTrayMenu());
 
     this.tray.on("click", () => {
