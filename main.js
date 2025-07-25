@@ -16,7 +16,6 @@ class VSCodeTrayLauncher {
     this.findVSCodeCommand();
   }
 
-  // NOVA FUNÇÃO - Adicione aqui
   setAutoStart(enable) {
     if (app.isPackaged) {
       app.setLoginItemSettings({
@@ -233,7 +232,6 @@ class VSCodeTrayLauncher {
     }
   }
 
-  // 🔄 FUNÇÃO MODIFICADA - Substitua a função existente
   createTrayMenu() {
     const menuItems = [];
 
@@ -243,16 +241,15 @@ class VSCodeTrayLauncher {
       enabled: false,
     });
 
-    // 🆕 NOVO TRECHO - Opção de auto-start (só aparece quando empacotado)
+    // Opção de auto-start
     if (app.isPackaged) {
-      const autoStart = app.getLoginItemSettings().openAtLogin;
+      const autoStartEnabled = app.getLoginItemSettings().openAtLogin;
       menuItems.push({
-        label: autoStart
-          ? "Desabilitar inicialização automática"
-          : "Habilitar inicialização automática",
-        click: () => {
-          this.setAutoStart(!autoStart);
-          this.updateTrayMenu(); // Atualiza o menu para mostrar o novo status
+        label: "Iniciar com o sistema",
+        type: "checkbox",
+        checked: autoStartEnabled,
+        click: (menuItem) => {
+          this.setAutoStart(menuItem.checked);
         },
       });
     }
@@ -277,6 +274,7 @@ class VSCodeTrayLauncher {
               label: "Abrir no VS Code",
               click: () => this.openProject(project.path),
             },
+            ,
             { type: "separator" },
             {
               label: "Remover projeto",
