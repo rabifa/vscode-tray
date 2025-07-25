@@ -9,11 +9,9 @@ class VSCodeTrayLauncher {
     this.projects = [];
     this.projectsFile = this.getProjectsFilePath();
     this.platform = process.platform;
-    this.vscodeCommand = null;
 
     console.log(`Plataforma detectada: ${this.platform}`);
     this.loadProjects();
-    this.findVSCodeCommand();
   }
 
   setAutoStart(enable) {
@@ -33,69 +31,6 @@ class VSCodeTrayLauncher {
       return path.join(userDataPath, "projects.json");
     }
     return path.join(__dirname, "projects.json");
-  }
-
-  async findVSCodeCommand() {
-    console.log("Procurando VS Code...");
-
-    const possibleCommands = [];
-
-    if (this.platform === "win32") {
-      possibleCommands.push(
-        "code",
-        "code.cmd",
-        path.join(
-          process.env.LOCALAPPDATA || "",
-          "Programs",
-          "Microsoft VS Code",
-          "bin",
-          "code.cmd"
-        ),
-        path.join(
-          process.env.PROGRAMFILES || "",
-          "Microsoft VS Code",
-          "bin",
-          "code.cmd"
-        ),
-        path.join(
-          process.env["PROGRAMFILES(X86)"] || "",
-          "Microsoft VS Code",
-          "bin",
-          "code.cmd"
-        )
-      );
-    } else {
-      possibleCommands.push(
-        "code",
-        "/usr/bin/code",
-        "/usr/local/bin/code",
-        "/snap/bin/code"
-      );
-    }
-
-    for (const cmd of possibleCommands) {
-      if (await this.testVSCodeCommand(cmd)) {
-        this.vscodeCommand = cmd;
-        console.log(`VS Code encontrado: ${cmd}`);
-        return;
-      }
-    }
-
-    console.log("VS Code não encontrado em nenhum local padrão");
-    this.vscodeCommand = null;
-  }
-
-  testVSCodeCommand(command) {
-    return new Promise((resolve) => {
-      if (fs.existsSync(command)) {
-        resolve(true);
-        return;
-      }
-
-      exec(`"${command}" --version`, { timeout: 5000 }, (error) => {
-        resolve(!error);
-      });
-    });
   }
 
   loadProjects() {
@@ -189,45 +124,27 @@ class VSCodeTrayLauncher {
 
   async openProject(projectPath) {
     try {
-      console.log(`Tentando abrir projeto em nova janela: ${projectPath}`);
+      console.log(
+        `Tentando abrir o projeto em uma nova janela: ${projectPath}`
+      );
+      const command = `code "${projectPath}" -n`;
 
-      if (!this.vscodeCommand) {
-        await this.findVSCodeCommand();
-      }
-
-      if (!this.vscodeCommand) {
-        dialog.showErrorBox(
-          "VS Code não encontrado",
-          "VS Code não está instalado ou não foi encontrado.\n\nInstale o VS Code ou adicione-o ao PATH do sistema."
-        );
-        return;
-      }
-
-      console.log(`Usando comando: ${this.vscodeCommand}`);
-
-      const args = ["--new-window", projectPath];
-
-      const child = spawn(this.vscodeCommand, args, {
-        detached: true,
-        stdio: "ignore",
-        shell: this.platform === "win32",
+      exec(command, (error) => {
+        if (error) {
+          console.error(`Erro ao abrir o projeto: ${error.message}`);
+          dialog.showErrorBox(
+            "Erro ao abrir projeto",
+            `Não foi possível abrir o projeto com o VS Code. Verifique se o VS Code está instalado e no PATH do sistema.\n\nDetalhes: ${error.message}`
+          );
+          return;
+        }
+        console.log(`Projeto aberto com sucesso: ${projectPath}`);
       });
-
-      child.on("error", (error) => {
-        console.error("Erro ao executar VS Code:", error);
-        dialog.showErrorBox(
-          "Erro",
-          `Não foi possível abrir o VS Code:\n${error.message}`
-        );
-      });
-
-      child.unref();
-      console.log(`Projeto aberto em nova janela: ${projectPath}`);
     } catch (error) {
-      console.error("Erro ao abrir projeto:", error);
+      console.error("Erro inesperado ao abrir o projeto:", error);
       dialog.showErrorBox(
-        "Erro",
-        `Não foi possível abrir o projeto:\n${error.message}`
+        "Erro inesperado",
+        "Ocorreu um erro inesperado ao tentar abrir o projeto."
       );
     }
   }
@@ -274,7 +191,6 @@ class VSCodeTrayLauncher {
               label: "Abrir no VS Code",
               click: () => this.openProject(project.path),
             },
-            ,
             { type: "separator" },
             {
               label: "Remover projeto",
