@@ -22,6 +22,9 @@ VS Code Tray é uma aplicação simples e eficiente que permite gerenciar e abri
 - 🌐 **Cross-platform**: Funciona no Windows e Linux
 
 ## 🖼️ Interface
+<img width="175" height="171" alt="vscode-tray-1" src="https://github.com/user-attachments/assets/2404166d-adf5-41b7-9979-07c969e429a6" />
+<img width="149" height="175" alt="vscode-tray-2" src="https://github.com/user-attachments/assets/ec0c0007-a62b-443b-9a89-71a1510c5306" />
+
 
 ## 🚀 Instalação
 
