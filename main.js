@@ -158,19 +158,6 @@ class VSCodeTrayLauncher {
       enabled: false,
     });
 
-    // Opção de auto-start
-    if (app.isPackaged) {
-      const autoStartEnabled = app.getLoginItemSettings().openAtLogin;
-      menuItems.push({
-        label: "Iniciar com o sistema",
-        type: "checkbox",
-        checked: autoStartEnabled,
-        click: (menuItem) => {
-          this.setAutoStart(menuItem.checked);
-        },
-      });
-    }
-
     // Lista dos projetos
     if (this.projects.length > 0) {
       menuItems.push({ type: "separator" });
@@ -213,7 +200,23 @@ class VSCodeTrayLauncher {
       {
         label: "Adicionar Projeto",
         click: () => this.addProject(),
-      },
+      }
+    );
+
+    // Opção de auto-start
+    if (app.isPackaged) {
+      const autoStartEnabled = app.getLoginItemSettings().openAtLogin;
+      menuItems.push({
+        label: "Iniciar com o sistema",
+        type: "checkbox",
+        checked: autoStartEnabled,
+        click: (menuItem) => {
+          this.setAutoStart(menuItem.checked);
+        },
+      });
+    }
+
+    menuItems.push(
       { type: "separator" },
       {
         label: "Sair",

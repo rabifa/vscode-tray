@@ -48,7 +48,8 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "forceCodeSigning": false
     },
     "nsis": {
       "oneClick": false,
@@ -83,10 +84,12 @@
       "icon": "assets/icon.png",
       "category": "Development",
       "desktop": {
-        "Name": "VS Code Tray Launcher",
-        "Comment": "Launch VS Code projects from system tray",
-        "Categories": "Development;IDE;",
-        "StartupNotify": "false"
+        "entry": {
+          "Name": "VS Code Tray Launcher",
+          "Comment": "Launch VS Code projects from system tray",
+          "Categories": "Development;IDE;",
+          "StartupNotify": "false"
+        }
       }
     }
   },
