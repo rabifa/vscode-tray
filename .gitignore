@@ -1,6 +1,9 @@
 # Dependencies
 /node_modules
 
+# Project list
+projects.json
+
 # Build output
 /dist
 
