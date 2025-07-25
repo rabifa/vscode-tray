@@ -295,7 +295,7 @@ class VSCodeTrayLauncher {
     const icon = this.getTrayIcon();
 
     this.tray = new Tray(icon);
-    this.tray.setToolTip("VS Code Project Launcher");
+    this.tray.setToolTip("VS Code Tray");
     this.tray.setContextMenu(this.createTrayMenu());
 
     this.tray.on("click", () => {
@@ -314,7 +314,7 @@ class VSCodeTrayLauncher {
   }
 
   quit() {
-    console.log("Encerrando VS Code Tray Launcher...");
+    console.log("Encerrando VS Code Tray...");
     if (this.tray) {
       this.tray.destroy();
     }
@@ -322,11 +322,11 @@ class VSCodeTrayLauncher {
   }
 
   init() {
-    app.setAppUserModelId("com.vscode.tray.launcher");
+    app.setAppUserModelId("com.vscode.tray");
 
     app.whenReady().then(() => {
       this.createTray();
-      console.log("VS Code Tray Launcher iniciado!");
+      console.log("VS Code Tray iniciado!");
       console.log(`Projetos salvos em: ${this.projectsFile}`);
     });
 
