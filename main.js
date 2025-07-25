@@ -8,11 +8,12 @@ class VSCodeTrayLauncher {
     this.tray = null;
     this.projects = [];
     this.projectsFile = this.getProjectsFilePath();
-    this.isDev = process.argv.includes("--dev");
     this.platform = process.platform;
+    this.vscodeCommand = null;
 
-    console.log(`🖥️  Plataforma detectada: ${this.platform}`);
+    console.log(`Plataforma detectada: ${this.platform}`);
     this.loadProjects();
+    this.findVSCodeCommand();
   }
 
   getProjectsFilePath() {
@@ -23,18 +24,81 @@ class VSCodeTrayLauncher {
     return path.join(__dirname, "projects.json");
   }
 
+  async findVSCodeCommand() {
+    console.log("Procurando VS Code...");
+
+    const possibleCommands = [];
+
+    if (this.platform === "win32") {
+      possibleCommands.push(
+        "code",
+        "code.cmd",
+        path.join(
+          process.env.LOCALAPPDATA || "",
+          "Programs",
+          "Microsoft VS Code",
+          "bin",
+          "code.cmd"
+        ),
+        path.join(
+          process.env.PROGRAMFILES || "",
+          "Microsoft VS Code",
+          "bin",
+          "code.cmd"
+        ),
+        path.join(
+          process.env["PROGRAMFILES(X86)"] || "",
+          "Microsoft VS Code",
+          "bin",
+          "code.cmd"
+        )
+      );
+    } else {
+      possibleCommands.push(
+        "code",
+        "/usr/bin/code",
+        "/usr/local/bin/code",
+        "/snap/bin/code"
+      );
+    }
+
+    for (const cmd of possibleCommands) {
+      if (await this.testVSCodeCommand(cmd)) {
+        this.vscodeCommand = cmd;
+        console.log(`VS Code encontrado: ${cmd}`);
+        return;
+      }
+    }
+
+    console.log("VS Code não encontrado em nenhum local padrão");
+    this.vscodeCommand = null;
+  }
+
+  testVSCodeCommand(command) {
+    return new Promise((resolve) => {
+      if (fs.existsSync(command)) {
+        resolve(true);
+        return;
+      }
+
+      exec(`"${command}" --version`, { timeout: 5000 }, (error) => {
+        resolve(!error);
+      });
+    });
+  }
+
   loadProjects() {
     try {
       if (fs.existsSync(this.projectsFile)) {
         const data = fs.readFileSync(this.projectsFile, "utf8");
         this.projects = JSON.parse(data);
-        console.log(`📁 ${this.projects.length} projetos carregados`);
+        console.log(`${this.projects.length} projetos carregados`);
       } else {
         this.projects = [];
-        console.log("📁 Nenhum projeto encontrado, iniciando lista vazia");
+        console.log("Nenhum projeto encontrado, iniciando lista vazia");
       }
     } catch (error) {
-      console.error("❌ Erro ao carregar projetos:", error);
+      console.error("Erro ao carregar projetos:", error);
       this.projects = [];
     }
   }
@@ -50,9 +114,9 @@ class VSCodeTrayLauncher {
         this.projectsFile,
         JSON.stringify(this.projects, null, 2)
       );
-      console.log("💾 Projetos salvos com sucesso");
+      console.log("Projetos salvos com sucesso");
     } catch (error) {
-      console.error("❌ Erro ao salvar projetos:", error);
+      console.error("Erro ao salvar projetos:", error);
     }
   }
 
@@ -68,7 +132,6 @@ class VSCodeTrayLauncher {
         const projectPath = result.filePaths[0];
         const projectName = path.basename(projectPath);
 
-        // Verifica se já existe
         const existingProject = this.projects.find(
           (p) => p.path === projectPath
         );
@@ -81,14 +144,9 @@ class VSCodeTrayLauncher {
           return;
         }
 
-        // Detecta informações do projeto
-        const projectInfo = this.getProjectInfo(projectPath);
-
         const newProject = {
           name: projectName,
           path: projectPath,
-          type: projectInfo.type,
-          framework: projectInfo.framework,
           addedAt: new Date().toISOString(),
         };
 
@@ -96,128 +154,11 @@ class VSCodeTrayLauncher {
         this.saveProjects();
         this.updateTrayMenu();
 
-        dialog.showMessageBox({
-          type: "info",
-          title: "Projeto adicionado",
-          message: `"${projectName}" foi adicionado com sucesso!`,
-        });
-
-        console.log(`✅ Projeto '${projectName}' adicionado!`);
+        console.log(`Projeto '${projectName}' adicionado!`);
       }
     } catch (error) {
-      console.error("❌ Erro ao adicionar projeto:", error);
+      console.error("Erro ao adicionar projeto:", error);
       dialog.showErrorBox("Erro", "Não foi possível adicionar o projeto");
-    }
-  }
-
-  getProjectInfo(projectPath) {
-    const info = { type: "Projeto", framework: null };
-
-    try {
-      // Verifica package.json (Node.js/JavaScript)
-      const packageJsonPath = path.join(projectPath, "package.json");
-      if (fs.existsSync(packageJsonPath)) {
-        const packageJson = JSON.parse(
-          fs.readFileSync(packageJsonPath, "utf8")
-        );
-        info.type = "Node.js";
-
-        // Detecta frameworks
-        if (packageJson.dependencies || packageJson.devDependencies) {
-          const deps = {
-            ...packageJson.dependencies,
-            ...packageJson.devDependencies,
-          };
-
-          if (deps.react) {
-            info.framework = "React";
-            if (deps.next) info.framework = "Next.js";
-          } else if (deps.vue) {
-            info.framework = "Vue.js";
-            if (deps.nuxt) info.framework = "Nuxt.js";
-          } else if (deps["@angular/core"]) {
-            info.framework = "Angular";
-          } else if (deps.svelte) {
-            info.framework = "Svelte";
-          } else if (deps.express) {
-            info.framework = "Express";
-          } else if (deps.electron) {
-            info.framework = "Electron";
-          }
-        }
-      }
-
-      // Verifica projetos Python
-      else if (
-        fs.existsSync(path.join(projectPath, "requirements.txt")) ||
-        fs.existsSync(path.join(projectPath, "setup.py")) ||
-        fs.existsSync(path.join(projectPath, "pyproject.toml")) ||
-        fs.existsSync(path.join(projectPath, "Pipfile"))
-      ) {
-        info.type = "Python";
-
-        // Detecta frameworks Python
-        if (fs.existsSync(path.join(projectPath, "manage.py"))) {
-          info.framework = "Django";
-        } else if (
-          fs.existsSync(path.join(projectPath, "app.py")) ||
-          fs.existsSync(path.join(projectPath, "main.py"))
-        ) {
-          try {
-            const reqPath = path.join(projectPath, "requirements.txt");
-            if (fs.existsSync(reqPath)) {
-              const requirements = fs.readFileSync(reqPath, "utf8");
-              if (requirements.includes("flask")) info.framework = "Flask";
-              if (requirements.includes("fastapi")) info.framework = "FastAPI";
-            }
-          } catch (e) {}
-        }
-      }
-
-      // Verifica projetos .NET
-      else if (
-        this.findFiles(projectPath, [".csproj", ".sln", ".fsproj", ".vbproj"])
-          .length > 0
-      ) {
-        info.type = ".NET";
-      }
-
-      // Verifica projetos Java
-      else if (
-        fs.existsSync(path.join(projectPath, "pom.xml")) ||
-        fs.existsSync(path.join(projectPath, "build.gradle"))
-      ) {
-        info.type = "Java";
-        if (fs.existsSync(path.join(projectPath, "pom.xml")))
-          info.framework = "Maven";
-        if (fs.existsSync(path.join(projectPath, "build.gradle")))
-          info.framework = "Gradle";
-      }
-
-      // Verifica projetos Go
-      else if (fs.existsSync(path.join(projectPath, "go.mod"))) {
-        info.type = "Go";
-      }
-
-      // Verifica projetos Rust
-      else if (fs.existsSync(path.join(projectPath, "Cargo.toml"))) {
-        info.type = "Rust";
-      }
-    } catch (error) {
-      console.log("⚠️  Erro ao detectar tipo do projeto:", error);
-    }
-
-    return info;
-  }
-
-  findFiles(dir, extensions) {
-    try {
-      const files = fs.readdirSync(dir);
-      return files.filter((file) =>
-        extensions.some((ext) => file.endsWith(ext))
-      );
-    } catch (error) {
-      return [];
     }
   }
 
@@ -226,129 +167,60 @@ class VSCodeTrayLauncher {
       const project = this.projects[index];
       if (!project) return;
 
-      const response = dialog.showMessageBoxSync({
-        type: "question",
-        buttons: ["Sim", "Cancelar"],
-        defaultId: 1,
-        title: "Confirmar remoção",
-        message: `Remover "${project.name}" da lista?`,
-        detail: "Esta ação não pode ser desfeita.",
-      });
-
-      if (response === 0) {
-        // Sim
-        this.projects.splice(index, 1);
-        this.saveProjects();
-        this.updateTrayMenu();
-        console.log(`🗑️ Projeto '${project.name}' removido!`);
-      }
+      // Remove sem confirmação
+      this.projects.splice(index, 1);
+      this.saveProjects();
+      this.updateTrayMenu();
+      console.log(`Projeto '${project.name}' removido!`);
     } catch (error) {
-      console.error("❌ Erro ao remover projeto:", error);
+      console.error("Erro ao remover projeto:", error);
     }
   }
 
   async openProject(projectPath) {
     try {
-      // Verifica se o VS Code está instalado
-      const isVSCodeInstalled = await this.checkVSCodeInstallation();
-      if (!isVSCodeInstalled) {
+      console.log(`Tentando abrir projeto em nova janela: ${projectPath}`);
+
+      if (!this.vscodeCommand) {
+        await this.findVSCodeCommand();
+      }
+
+      if (!this.vscodeCommand) {
         dialog.showErrorBox(
           "VS Code não encontrado",
-          "VS Code não está instalado ou não está no PATH"
+          "VS Code não está instalado ou não foi encontrado.\n\nInstale o VS Code ou adicione-o ao PATH do sistema."
         );
         return;
       }
 
-      // Comando específico por plataforma
-      let command, args;
+      console.log(`Usando comando: ${this.vscodeCommand}`);
 
-      if (this.platform === "win32") {
-        // Windows
-        command = "cmd";
-        args = ["/c", "code", `"${projectPath}"`];
-      } else {
-        // Linux
-        command = "code";
-        args = [projectPath];
-      }
+      // Sempre abre em nova janela
+      const args = ["--new-window", projectPath];
 
-      const child = spawn(command, args, {
+      const child = spawn(this.vscodeCommand, args, {
         detached: true,
         stdio: "ignore",
         shell: this.platform === "win32",
       });
 
+      child.on("error", (error) => {
+        console.error("Erro ao executar VS Code:", error);
+        dialog.showErrorBox(
+          "Erro",
+          `Não foi possível abrir o VS Code:\n${error.message}`
+        );
+      });
+
       child.unref();
-      console.log(`🚀 Projeto aberto: ${projectPath}`);
+      console.log(`Projeto aberto em nova janela: ${projectPath}`);
     } catch (error) {
-      console.error("❌ Erro ao abrir projeto:", error);
+      console.error("Erro ao abrir projeto:", error);
       dialog.showErrorBox(
         "Erro",
-        "Não foi possível abrir o projeto no VS Code"
+        `Não foi possível abrir o projeto:\n${error.message}`
       );
     }
-  }
-
-  checkVSCodeInstallation() {
-    return new Promise((resolve) => {
-      let command;
-
-      if (this.platform === "win32") {
-        command = "where code";
-      } else {
-        command = "which code";
-      }
-
-      exec(command, (error) => {
-        resolve(!error);
-      });
-    });
-  }
-
-  openProjectFolder(projectPath) {
-    try {
-      shell.openPath(projectPath);
-    } catch (error) {
-      console.error("❌ Erro ao abrir pasta:", error);
-    }
-  }
-
-  getProjectIcon(project) {
-    if (project.framework) {
-      const frameworkIcons = {
-        React: "⚛️",
-        "Next.js": "▲",
-        "Vue.js": "💚",
-        "Nuxt.js": "💚",
-        Angular: "🅰️",
-        Svelte: "🧡",
-        Express: "🚂",
-        Electron: "⚡",
-        Django: "🐍",
-        Flask: "🌶️",
-        FastAPI: "⚡",
-        Maven: "☕",
-        Gradle: "🐘",
-      };
-      return (
-        frameworkIcons[project.framework] || this.getTypeIcon(project.type)
-      );
-    }
-
-    return this.getTypeIcon(project.type);
-  }
-
-  getTypeIcon(projectType) {
-    const typeIcons = {
-      "Node.js": "💚",
-      Python: "🐍",
-      ".NET": "💙",
-      Java: "☕",
-      Go: "🐹",
-      Rust: "🦀",
-      Projeto: "📁",
-    };
-    return typeIcons[projectType] || "��";
   }
 
   createTrayMenu() {
@@ -356,11 +228,11 @@ class VSCodeTrayLauncher {
 
     // Header
     menuItems.push({
-      label: "🚀 VS Code Launcher",
+      label: "VS Code Tray",
       enabled: false,
     });
 
-    // Lista direta dos projetos
+    // Lista dos projetos
     if (this.projects.length > 0) {
       menuItems.push({ type: "separator" });
 
@@ -369,70 +241,27 @@ class VSCodeTrayLauncher {
         a.name.toLowerCase().localeCompare(b.name.toLowerCase())
       );
 
-      // Mostra até 15 projetos diretamente no menu
-      const projectsToShow = sortedProjects.slice(0, 15);
-
-      projectsToShow.forEach((project) => {
+      // Adiciona cada projeto com submenu
+      sortedProjects.forEach((project) => {
         const originalIndex = this.projects.findIndex(
           (p) => p.path === project.path
         );
-        const label = project.framework
-          ? `${this.getProjectIcon(project)} ${project.name} (${
-              project.framework
-            })`
-          : `${this.getProjectIcon(project)} ${project.name}`;
 
         menuItems.push({
-          label: label,
-          // Clique esquerdo: abre no VS Code
-          click: () => this.openProject(project.path),
-          // Submenu para clique direito
+          label: project.name,
           submenu: [
             {
-              label: "📁 Abrir pasta",
-              click: () => this.openProjectFolder(project.path),
+              label: "Abrir no VS Code",
+              click: () => this.openProject(project.path),
             },
+            { type: "separator" },
             {
-              label: "🗑️ Remover",
+              label: "Remover projeto",
               click: () => this.removeProject(originalIndex),
             },
           ],
         });
       });
-
-      // Se há mais de 15 projetos, adiciona submenu "Mais projetos"
-      if (this.projects.length > 15) {
-        const remainingProjects = sortedProjects.slice(15);
-
-        menuItems.push({
-          label: `📂 Mais projetos (${remainingProjects.length})`,
-          submenu: remainingProjects.map((project) => {
-            const originalIndex = this.projects.findIndex(
-              (p) => p.path === project.path
-            );
-            const label = project.framework
-              ? `${this.getProjectIcon(project)} ${project.name} (${
-                  project.framework
-                })`
-              : `${this.getProjectIcon(project)} ${project.name}`;
-
-            return {
-              label: label,
-              click: () => this.openProject(project.path),
-              submenu: [
-                {
-                  label: "📁 Abrir pasta",
-                  click: () => this.openProjectFolder(project.path),
-                },
-                {
-                  label: "🗑️ Remover",
-                  click: () => this.removeProject(originalIndex),
-                },
-              ],
-            };
-          }),
-        });
-      }
     } else {
       menuItems.push({ type: "separator" });
       menuItems.push({
@@ -445,19 +274,12 @@ class VSCodeTrayLauncher {
     menuItems.push(
       { type: "separator" },
       {
-        label: "➕ Adicionar Projeto",
+        label: "Adicionar Projeto",
         click: () => this.addProject(),
       },
       { type: "separator" },
       {
-        label: "🔄 Recarregar",
-        click: () => {
-          this.loadProjects();
-          this.updateTrayMenu();
-        },
-      },
-      {
-        label: "❌ Sair",
+        label: "Sair",
         click: () => this.quit(),
       }
     );
@@ -472,88 +294,62 @@ class VSCodeTrayLauncher {
   }
 
   getTrayIcon() {
-    // Primeiro tenta carregar o ícone personalizado
     const iconPath = this.getTrayIconPath();
-
-    console.log(`🔍 Tentando carregar ícone: ${iconPath}`);
-    console.log(`📁 Arquivo existe: ${fs.existsSync(iconPath)}`);
 
     if (fs.existsSync(iconPath)) {
       try {
         let icon = nativeImage.createFromPath(iconPath);
-
         if (!icon.isEmpty()) {
-          console.log("✅ Ícone personalizado carregado com sucesso");
+          console.log("Ícone personalizado carregado");
           return icon;
         }
       } catch (error) {
-        console.error("❌ Erro ao carregar ícone personalizado:", error);
+        console.error("Erro ao carregar ícone personalizado:", error);
       }
     }
 
-    // Se não conseguir carregar o personalizado, cria um ícone simples
-    console.log("🎨 Criando ícone padrão...");
+    console.log("Usando ícone padrão");
     return this.createDefaultIcon();
   }
 
   getTrayIconPath() {
-    const iconName = this.platform === "win32" ? "ico.ico" : "icon.png";
-    if (app.isPackaged) {
-      return path.join(process.resourcesPath, "assets", iconName);
+    if (this.platform === "win32") {
+      return path.join(__dirname, "assets", "icon.ico");
+    } else {
+      return path.join(__dirname, "assets", "icon.png");
     }
-    return path.join(__dirname, "assets", iconName);
   }
 
   createDefaultIcon() {
     try {
-      // Cria um ícone PNG simples de 16x16 usando Buffer
       const size = 16;
-      const channels = 4; // RGBA
+      const channels = 4;
       const buffer = Buffer.alloc(size * size * channels);
 
-      // Preenche o buffer com um ícone azul simples
       for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
           const index = (y * size + x) * channels;
 
-          // Cria uma borda e um interior
           if (x === 0 || x === size - 1 || y === 0 || y === size - 1) {
-            // Borda azul escura
-            buffer[index] = 0; // R
-            buffer[index + 1] = 90; // G
-            buffer[index + 2] = 158; // B
-            buffer[index + 3] = 255; // A
-          } else if (
-            (x >= 2 && x <= 5 && y >= 5 && y <= 10) ||
-            (x >= 7 && x <= 13 && y >= 5 && y <= 7) ||
-            (x >= 7 && x <= 13 && y >= 9 && y <= 10) ||
-            (x >= 10 && x <= 13 && y >= 7 && y <= 9)
-          ) {
-            // Desenha "VS" em branco
-            buffer[index] = 255; // R
-            buffer[index + 1] = 255; // G
-            buffer[index + 2] = 255; // B
-            buffer[index + 3] = 255; // A
+            buffer[index] = 0;
+            buffer[index + 1] = 90;
+            buffer[index + 2] = 158;
+            buffer[index + 3] = 255;
           } else {
-            // Interior azul
-            buffer[index] = 0; // R
-            buffer[index + 1] = 122; // G
-            buffer[index + 2] = 204; // B
-            buffer[index + 3] = 255; // A
+            buffer[index] = 0;
+            buffer[index + 1] = 122;
+            buffer[index + 2] = 204;
+            buffer[index + 3] = 255;
           }
         }
       }
 
-      const icon = nativeImage.createFromBuffer(buffer, {
+      return nativeImage.createFromBuffer(buffer, {
         width: size,
         height: size,
       });
-
-      console.log("✅ Ícone padrão criado com sucesso");
-      return icon;
     } catch (error) {
-      console.error("❌ Erro ao criar ícone padrão:", error);
-      // Último recurso: ícone vazio
+      console.error("Erro ao criar ícone padrão:", error);
       return nativeImage.createEmpty();
     }
   }
@@ -562,31 +358,26 @@ class VSCodeTrayLauncher {
     const icon = this.getTrayIcon();
 
     this.tray = new Tray(icon);
-    this.tray.setToolTip("VS Code Project Launcher");
+    this.tray.setToolTip("VS Code Tray");
+    this.tray.setContextMenu(this.createTrayMenu());
 
-    // Define o menu
-    const contextMenu = this.createTrayMenu();
-    this.tray.setContextMenu(contextMenu);
-
-    // Eventos do tray - clique simples abre o menu
     this.tray.on("click", () => {
-      this.tray.popUpContextMenu(contextMenu);
+      this.tray.popUpContextMenu();
     });
 
     this.tray.on("right-click", () => {
-      this.tray.popUpContextMenu(contextMenu);
+      this.tray.popUpContextMenu();
     });
 
-    // Duplo clique para adicionar projeto rapidamente
     this.tray.on("double-click", () => {
       this.addProject();
     });
 
-    console.log("🎯 Tray criada com sucesso");
+    console.log("Tray criada com sucesso");
   }
 
   quit() {
-    console.log("👋 Encerrando VS Code Tray Launcher...");
+    console.log("Encerrando VS Code Tray Launcher...");
     if (this.tray) {
       this.tray.destroy();
     }
@@ -594,46 +385,30 @@ class VSCodeTrayLauncher {
   }
 
   init() {
-    // Configurações específicas
     app.setAppUserModelId("com.vscode.tray.launcher");
 
     app.whenReady().then(() => {
       this.createTray();
-      console.log("🚀 VS Code Tray Launcher iniciado!");
-      console.log(`🖥️  Plataforma: ${this.platform}`);
-      console.log(`�� Projetos salvos em: ${this.projectsFile}`);
-
-      if (this.isDev) {
-        console.log("🔧 Modo desenvolvimento ativo");
-      }
+      console.log("VS Code Tray Launcher iniciado!");
+      console.log(`Projetos salvos em: ${this.projectsFile}`);
     });
 
-    // Impede que o app feche
     app.on("window-all-closed", (e) => {
       e.preventDefault();
     });
 
-    // Cleanup
     app.on("before-quit", () => {
       if (this.tray) {
         this.tray.destroy();
       }
     });
 
-    // Instância única
     const gotTheLock = app.requestSingleInstanceLock();
     if (!gotTheLock) {
       app.quit();
-    } else {
-      app.on("second-instance", () => {
-        if (this.tray) {
-          this.tray.popUpContextMenu();
-        }
-      });
     }
   }
 }
 
-// Inicia a aplicação
 const launcher = new VSCodeTrayLauncher();
 launcher.init();
