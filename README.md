@@ -88,7 +88,7 @@ npm run build
 
 ### Inicialização Automática
 
-1. Clique com o botão direito do mouse e selecione a opção de "Iniciar com o sistema"
+1. Habilite a opção de "Iniciar com o sistema"
 2. O app será iniciado automaticamente com o sistema
 3. Para desabilitar, desmarque a opção de "Iniciar com o sistema"
 
