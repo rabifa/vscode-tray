@@ -10,8 +10,12 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "build-win": "electron-builder --win",
-    "build-linux": "electron-builder --linux",
+    "clean": "rimraf -rf dist",
+    "clean-cache": "(if exist \"%localappdata%\\electron-builder\\cache\" rmdir /s /q \"%localappdata%\\electron-builder\\cache\")",
+    "prebuild-win": "taskkill /im \"VS Code Tray.exe\" /f /t 2>nul || exit 0",
+    "clean:win": "(if exist dist rmdir /s /q dist)",
+    "build-win": "npm run clean-cache && npm run prebuild-win && npm run clean:win && electron-builder --win",
+    "build-linux": "npm run clean && electron-builder --linux",
     "build-all": "electron-builder --win --linux",
     "dist": "npm run build-all"
   },
@@ -25,12 +29,6 @@
     "files": [
       "main.js",
       "assets/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "assets/",
-        "to": "assets/"
-      }
     ],
     "win": {
       "target": [
@@ -95,7 +93,8 @@
   },
   "devDependencies": {
     "electron": "^37.2.4",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "rimraf": "^5.0.7"
   },
   "dependencies": {
     "canvas": "^3.1.2"
