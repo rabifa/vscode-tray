@@ -4,6 +4,9 @@
 # Project list
 projects.json
 
+# App Settings
+settings.json
+
 # Build output
 /dist
 
@@ -32,3 +35,4 @@ lerna-debug.log*
 
 # Other
 .DS_Store
+

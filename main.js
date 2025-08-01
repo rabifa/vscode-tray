@@ -7,11 +7,46 @@ class VSCodeTrayLauncher {
   constructor() {
     this.tray = null;
     this.projects = [];
-    this.projectsFile = this.getProjectsFilePath();
+    this.settings = {};
+    this.projectsFile = this.getStoragePath("projects.json");
+    this.settingsFile = this.getStoragePath("settings.json");
     this.platform = process.platform;
 
     console.log(`Plataforma detectada: ${this.platform}`);
+    this.loadSettings();
     this.loadProjects();
+  }
+
+  getStoragePath(fileName) {
+    const userDataPath = app.getPath("userData");
+    return path.join(userDataPath, fileName);
+  }
+
+  loadSettings() {
+    try {
+      if (fs.existsSync(this.settingsFile)) {
+        const data = fs.readFileSync(this.settingsFile, "utf8");
+        this.settings = JSON.parse(data);
+      } else {
+        // Se o arquivo não existe, cria com o padrão (desabilitado)
+        this.settings = { autoStart: false };
+        this.saveSettings();
+      }
+    } catch (error) {
+      console.error("Erro ao carregar configurações:", error);
+      this.settings = { autoStart: false };
+    }
+  }
+
+  saveSettings() {
+    try {
+      fs.writeFileSync(
+        this.settingsFile,
+        JSON.stringify(this.settings, null, 2)
+      );
+    } catch (error) {
+      console.error("Erro ao salvar configurações:", error);
+    }
   }
 
   setAutoStart(enable) {
@@ -19,18 +54,11 @@ class VSCodeTrayLauncher {
       app.setLoginItemSettings({
         openAtLogin: enable,
         path: process.execPath,
-        args: ["--hidden"], // Inicia minimizado
+        args: ["--hidden"],
       });
-      console.log(`Auto-start ${enable ? "habilitado" : "desabilitado"}`);
     }
-  }
-
-  getProjectsFilePath() {
-    if (app.isPackaged) {
-      const userDataPath = app.getPath("userData");
-      return path.join(userDataPath, "projects.json");
-    }
-    return path.join(__dirname, "projects.json");
+    this.settings.autoStart = enable;
+    this.saveSettings();
   }
 
   loadProjects() {
@@ -205,11 +233,10 @@ class VSCodeTrayLauncher {
 
     // Opção de auto-start
     if (app.isPackaged) {
-      const autoStartEnabled = app.getLoginItemSettings().openAtLogin;
       menuItems.push({
         label: "Iniciar com o sistema",
         type: "checkbox",
-        checked: autoStartEnabled,
+        checked: this.settings.autoStart,
         click: (menuItem) => {
           this.setAutoStart(menuItem.checked);
         },
